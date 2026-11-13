@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>morning-news-pickup フロー図</title>
+<style>
+  :root { --bg: #ffffff; --text: #222222; --sub: #666666; --line: #dddddd; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1e1e1e; --text: #e6e6e6; --sub: #aaaaaa; --line: #444444; color-scheme: dark; }
+  }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text);
+         font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; line-height: 1.7; }
+  main { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin: 0 0 8px; }
+  h2 { font-size: 18px; font-weight: 500; margin: 40px 0 4px; padding-top: 16px; border-top: 1px solid var(--line); }
+  p { color: var(--sub); margin: 0 0 16px; }
+  .diagram { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>morning-news-pickup フロー図</h1>
+
+  <h2>1. URLを開いてから表示されるまで</h2>
+  <p>ログイン判定 → 画面表示 → API → 1日1回の取得判定</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+  A["ブラウザで / を開く"] --> B{"ログイン済み？<br>SecurityConfig・30日保持"}
+  B -- いいえ --> L["ログイン画面 login.html<br>パスワードだけ入力（ユーザー名 owner は自動送信）"]
+  L -- "POST /login 成功で元のURLへ" --> C
+  B -- はい --> C["index.html を返す<br>Vue画面（App.vue）"]
+  C --> D["App.vue がAPIを呼ぶ<br>GET /api/news<br>更新ボタンは POST /api/news/refresh"]
+  D --> E["NewsController"]
+  E --> F{"今日（日本時間）取得済み？<br>更新ボタンのときは取り直す"}
+  F -- はい --> G["保持した結果を使う"]
+  F -- いいえ --> H["全ジャンルを取得し直す<br>NewsService.loadAll → RssFetcher"]
+  G --> J["JSONを返す → タブ・カードで表示<br>国内の時事 / 経済・ビジネス / IT・テック"]
+  H --> J
+
+  classDef front fill:#E1F5EE,stroke:#0F6E56,color:#085041
+  classDef server fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+  class A,L,C,D,J front
+  class E,G,H server
+</pre>
+  </div>
+
+  <h2>2. 取得元（カード1枚）ごとの処理 NewsService.load</h2>
+  <p>「全ジャンルを取得し直す」の中で、取得元ごとに行う処理</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+  S1["RSSを取得して読み取る<br>RssFetcher"] --> S2["期間で絞り込む<br>24時間（Yahoo!は絞らない）"]
+  S2 --> S3["並べ替える<br>ブクマ数順（はてな） / RSSの順（Yahoo!・Zenn・Qiita）"]
+  S3 --> S4["件数でカット（5件）＋注意書き<br>足りないとき「◯件のみ表示」"]
+  S4 --> R["カード1枚分の結果<br>SourceResult"]
+  S1 -. 途中で例外 .-> E1["「取得に失敗しました」<br>他のカードは通常どおり表示"]
+  E1 --> R
+
+  classDef server fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+  classDef err fill:#FAECE7,stroke:#993C1D,color:#712B13
+  class S1,S2,S3,S4,R server
+  class E1 err
+</pre>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'default', flowchart: { htmlLabels: true } });
+</script>
+</body>
+</html>
